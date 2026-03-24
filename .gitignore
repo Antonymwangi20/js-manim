@@ -1,0 +1,6 @@
+node_modules/
+frames_tmp/
+frames_tmp_3d/
+output_*.mp4
+output_*.webm
+.DS_Store

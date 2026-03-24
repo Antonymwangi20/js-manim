@@ -1,0 +1,86 @@
+#!/usr/bin/env node
+
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+import { Scene } from "../src/core/Scene.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--version')) {
+    console.log('js-manim version 1.0.0');
+    process.exit(0);
+  }
+
+  let qualityFlag = null;
+  let outputFile = 'output.mp4';
+  let inputFile = null;
+  let quiet = false;
+
+  // Parse arguments
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg.startsWith('-q')) {
+      qualityFlag = arg;
+    } else if (arg === '-o' && i + 1 < args.length) {
+      outputFile = args[i + 1];
+      i++; // Skip next arg
+    } else if (!inputFile) {
+      inputFile = arg;
+    }
+  }
+
+  if (!inputFile) {
+    console.error("Usage: manjs [-q<l/p/h/k>] [-o output.mp4] <scene.js>");
+    console.error("Quality options:");
+    console.error("  -ql: Low quality (854x480, 15fps)");
+    console.error("  -qp: Presentation quality (1920x1080, 30fps)");
+    console.error("  -qh: High quality (2560x1440, 60fps)");
+    console.error("  -qk: Ultra quality (3840x2160, 60fps)");
+    process.exit(1);
+  }
+
+  // Quality settings map
+  const qualitySettings = {
+    '-ql': { width: 854, height: 480, fps: 15 },
+    '-qp': { width: 1920, height: 1080, fps: 30 },
+    '-qh': { width: 2560, height: 1440, fps: 60 },
+    '-qk': { width: 3840, height: 2160, fps: 60 },
+  };
+
+  const settings = qualitySettings[qualityFlag] || { width: 1280, height: 720, fps: 30 };
+
+  const scriptPath = resolve(process.cwd(), inputFile);
+
+  if (!quiet) console.log(`Loading: ${scriptPath}`);
+  if (!quiet) console.log(`Quality: ${qualityFlag || 'default'} (${settings.width}x${settings.height}, ${settings.fps}fps)`);
+
+  try {
+    const module = await import(`file://${scriptPath}`);
+    const scene = await module.main();
+
+    if (!scene || !(scene instanceof Scene)) {
+      throw new Error("Module must export async main() returning a Scene");
+    }
+
+    if (!quiet) console.log(`Rendering to: ${outputFile}`);
+    await scene.render({
+      fps: settings.fps,
+      duration: 5,
+      outputFile,
+      width: settings.width,
+      height: settings.height,
+    });
+
+    if (!quiet) console.log("✓ Done!");
+  } catch (err) {
+    console.error("Error:", err.message);
+    process.exit(1);
+  }
+}
+
+main();
